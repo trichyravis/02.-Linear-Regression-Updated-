@@ -61,48 +61,79 @@ PLOTLY_LAYOUT = dict(
 )
 
 # ── Data helpers ──────────────────────────────────────────────────
+def _close_series(ticker, period):
+    """Return one numeric, dated series despite Yahoo's MultiIndex columns."""
+    options = dict(interval="1d", auto_adjust=True, progress=False,
+                   threads=False, timeout=20)
+    if period == "3y":
+        end = pd.Timestamp.now(tz="Asia/Kolkata").date()
+        start = pd.Timestamp(end) - pd.DateOffset(years=3)
+        raw = yf.download(ticker, start=start.date(), end=end, **options)
+    else:
+        raw = yf.download(ticker, period=period, **options)
+    if raw is None or raw.empty:
+        raise ValueError(f"Yahoo returned no daily prices for {ticker}. Check the symbol or retry later; Yahoo may rate-limit requests.")
+    if isinstance(raw.columns, pd.MultiIndex):
+        levels = [i for i in range(raw.columns.nlevels) if "Close" in raw.columns.get_level_values(i)]
+        if not levels:
+            raise ValueError(f"No Close field returned for {ticker}.")
+        close = raw.xs("Close", axis=1, level=levels[0])
+        if isinstance(close, pd.DataFrame):
+            if ticker in close.columns:
+                close = close[ticker]
+            elif close.shape[1] == 1:
+                close = close.iloc[:, 0]
+            else:
+                raise ValueError(f"Ambiguous Close columns for {ticker}.")
+    else:
+        close = raw["Close"]
+    close = pd.to_numeric(close, errors="coerce")
+    dates = pd.DatetimeIndex(pd.to_datetime(close.index))
+    if dates.tz is not None:
+        dates = dates.tz_convert("Asia/Kolkata").tz_localize(None)
+    close.index = dates.normalize()
+    close = close[~close.index.duplicated(keep="last")].sort_index().dropna()
+    today = pd.Timestamp.now(tz="Asia/Kolkata").date()
+    close = close[(close.index.date < today) & (close > 0)]
+    if close.empty:
+        raise ValueError(f"No completed daily prices available for {ticker}.")
+    return close.rename(ticker)
+
 @st.cache_data(ttl=900, show_spinner=False)
-def fetch_data(ticker, market, period):
-    try:
-        stk = yf.download(ticker, period=period, auto_adjust=True, progress=False)["Close"]
-        mkt = yf.download(market, period=period, auto_adjust=True, progress=False)["Close"]
-        rf  = yf.download("^INBMK.NS", period=period, auto_adjust=True, progress=False)["Close"]
-        df = pd.DataFrame({"stock": stk, "market": mkt}).dropna()
-        df["r_stock"]  = np.log(df["stock"]  / df["stock"].shift(1))
-        df["r_market"] = np.log(df["market"] / df["market"].shift(1))
-        if len(rf) > 10:
-            rf_daily = rf.reindex(df.index, method="ffill").fillna(method="bfill") / 252 / 100
-        else:
-            rf_daily = pd.Series(6.5 / 252 / 100, index=df.index)
-        df["rf"] = rf_daily
-        df["xs_stock"]  = df["r_stock"]  - df["rf"]
-        df["xs_market"] = df["r_market"] - df["rf"]
-        return df.dropna()
-    except Exception as e:
-        return None
+def fetch_data(ticker, market, period, rf_annual=6.5):
+    stock = _close_series(ticker, period)
+    benchmark = _close_series(market, period)
+    df = pd.concat([stock.rename("stock"), benchmark.rename("market")], axis=1, join="inner").dropna()
+    if len(df) < 31:
+        raise ValueError("Fewer than 31 common completed closing dates. Select a longer period.")
+    df["r_stock"] = df["stock"].pct_change(fill_method=None)
+    df["r_market"] = df["market"].pct_change(fill_method=None)
+    df["rf"] = (1 + float(rf_annual)/100)**(1/252) - 1
+    df["xs_stock"] = df["r_stock"] - df["rf"]
+    df["xs_market"] = df["r_market"] - df["rf"]
+    df = df.replace([np.inf, -np.inf], np.nan).dropna()
+    if df["xs_market"].var() <= 0:
+        raise ValueError("Market returns have no variation; cannot estimate regression.")
+    df.attrs["fetched_at"] = pd.Timestamp.now(tz="Asia/Kolkata").strftime("%d %b %Y, %H:%M IST")
+    return df
 
 @st.cache_data(ttl=900, show_spinner=False)
 def fetch_ff_proxies(period):
-    """Fetch SMB/HML proxies using sector ETFs as rough factors"""
-    try:
-        # Use Indian market data: Large cap vs Small cap, Value vs Growth proxies
-        large = yf.download("NIFTYBEES.NS", period=period, auto_adjust=True, progress=False)["Close"]
-        small = yf.download("SETFNN50.NS",  period=period, auto_adjust=True, progress=False)["Close"]
-        value = yf.download("BFSI.NS",      period=period, auto_adjust=True, progress=False)["Close"]
-        growth= yf.download("INFY.NS",      period=period, auto_adjust=True, progress=False)["Close"]
-
-        df = pd.DataFrame({"large": large, "small": small,
-                           "value": value, "growth": growth}).dropna()
-        df["smb"]  = np.log(df["small"]/df["small"].shift(1)) - np.log(df["large"]/df["large"].shift(1))
-        df["hml"]  = np.log(df["value"]/df["value"].shift(1)) - np.log(df["growth"]/df["growth"].shift(1))
-        df["mkt"]  = np.log(df["large"]/df["large"].shift(1))
-        return df.dropna()
-    except:
-        return None
+    prices = pd.concat([_close_series(t, period).rename(n) for n, t in
+        [("large", "NIFTYBEES.NS"), ("small", "SETFNN50.NS"),
+         ("value", "BFSI.NS"), ("growth", "INFY.NS")]], axis=1, join="inner").dropna()
+    returns = prices.pct_change(fill_method=None).dropna()
+    return pd.DataFrame({"smb": returns["small"]-returns["large"],
+                         "hml": returns["value"]-returns["growth"]})
 
 def run_ols(y, X):
     """Run OLS and return full stats dict"""
+    y, X = np.asarray(y, dtype=float), np.asarray(X, dtype=float)
     n, k = len(y), X.shape[1]
+    if n <= k or not np.isfinite(X).all() or not np.isfinite(y).all():
+        raise ValueError("OLS requires finite data and positive residual degrees of freedom.")
+    if np.linalg.matrix_rank(X) < k or np.var(y) <= 0:
+        raise ValueError("OLS design is singular or outcome has no variation.")
     b = np.linalg.lstsq(X, y, rcond=None)[0]
     yhat = X @ b
     resid = y - yhat
@@ -133,29 +164,55 @@ def tab_finance():
         st.html(f'<div style="font-family:{FH};color:#FFD700;-webkit-text-fill-color:#FFD700;'
                 f'font-size:1.1rem;font-weight:700;padding:8px 0;border-bottom:1px solid #1e3a5f;'
                 f'margin-bottom:12px;{NO_SEL}">📊 Finance Lab Controls</div>')
-        sel_name = st.selectbox("📡 Select Nifty 50 Stock", list(NIFTY_STOCKS.keys()), index=0)
+        sel_name = st.selectbox("📡 Select NSE Stock", list(NIFTY_STOCKS.keys()), index=0)
         sel_ticker = NIFTY_STOCKS[sel_name]
         period_label = st.selectbox("📅 Data Period", list(PERIODS.keys()), index=2)
         period = PERIODS[period_label]
         model_type = st.radio("📐 Model", ["CAPM (SLR)", "Fama-French 3-Factor (MLR)"], index=0)
+        custom_symbol = st.text_input("Optional Yahoo NSE ticker", placeholder="e.g. RELIANCE.NS").strip().upper()
+        if custom_symbol:
+            if not custom_symbol.endswith(".NS") or len(custom_symbol) > 35 or any(c.isspace() for c in custom_symbol):
+                st.error("Enter a Yahoo NSE symbol ending in .NS.")
+                return
+            sel_ticker, sel_name = custom_symbol, custom_symbol
+        st.caption("Convenience list: verify current Nifty constituent membership separately.")
+        rf_annual = st.number_input("Assumed annual risk-free rate (%)", min_value=0.0, max_value=25.0, value=6.5, step=0.1)
+        st.caption("User assumption, not a downloaded current RBI/T-bill rate. Converted to a daily effective rate using 252 trading days.")
+        st.markdown("**Market data source:** [Yahoo Finance — Nifty 50](https://finance.yahoo.com/quote/%5ENSEI/history/)")
+        if st.button("Refresh Yahoo data", key="refresh_yahoo"):
+            fetch_data.clear()
+            fetch_ff_proxies.clear()
         conf = st.slider("Confidence Level (%)", 90, 99, 95) / 100
 
     st.html(f'<div style="font-family:{FH};font-size:.95rem;color:#8892b0;'
             f'-webkit-text-fill-color:#8892b0;margin-bottom:16px;{NO_SEL}">'
-            f'🏦 Live regression analysis using real NSE data via Yahoo Finance (15-min delay)</div>')
+            f'🏦 Latest available completed daily prices via Yahoo Finance · Quotes may be delayed · Cache: 15 minutes</div>')
 
     if not YFINANCE_OK:
         render_ib(alert_box("⚠️ yfinance not installed. Run: pip install yfinance", "red"))
         return
 
+    from urllib.parse import quote
+    st.markdown(f"**Data source:** [Yahoo Finance — {sel_ticker}](https://finance.yahoo.com/quote/{quote(sel_ticker, safe='')}/history/) · [Nifty 50 (^NSEI)](https://finance.yahoo.com/quote/%5ENSEI/history/)")
+    st.info("Choose a stock and period in the sidebar. This lab downloads actual Yahoo daily history; today's unfinished candle is excluded. It is not an exchange real-time feed.")
     # ── Fetch data ───────────────────────────────────────────────────
     with st.spinner(f"📡 Fetching {sel_name} & Nifty 50 data..."):
-        df = fetch_data(sel_ticker, MARKET, period)
+        try:
+            df = fetch_data(sel_ticker, MARKET, period, rf_annual)
+        except Exception as exc:
+            st.error(f"Yahoo Finance download failed: {exc}")
+            st.info("Click Refresh Yahoo data, try a longer period or a different .NS ticker. No synthetic stock or index data is substituted.")
+            return
 
-    if df is None or len(df) < 60:
+    if df is None or len(df) < 30:
         render_ib(alert_box("⚠️ Insufficient data. Try a longer period or different stock.", "red"))
         return
 
+    st.success(f"Yahoo data loaded: {sel_ticker} vs {MARKET} | {len(df)} common daily returns | {df.index.min():%d %b %Y}–{df.index.max():%d %b %Y}")
+    st.caption(f"Fetched {df.attrs.get('fetched_at', 'unknown')} | Adjusted stock Close vs Nifty price index; educational CAPM approximation, not a consistent total-return benchmark.")
+    with st.expander("View downloaded Yahoo prices and calculated returns"):
+        st.dataframe(df.tail(20), use_container_width=True)
+    st.download_button("Download Yahoo regression data (CSV)", df.to_csv(index_label="Date"), file_name=f"{sel_ticker}_nifty_regression.csv", mime="text/csv")
     ret_s = df["xs_stock"].values
     ret_m = df["xs_market"].values
 
@@ -219,7 +276,7 @@ def tab_finance():
             metric_card("Systematic Risk", f"{sys_risk:.1f}%", "β² × σ²ₘ / σ²ᵢ", "#FFD700"),
             metric_card("Idiosyncratic Risk", f"{idio_risk:.1f}%", "1 - R²", "#ff9f43"),
             metric_card("Ann. Volatility", f"{annual_vol*100:.2f}%", "√252 × σ_daily", "#ADD8E6"),
-            metric_card("Treynor Ratio", f"{annual_alpha/abs(beta)*100:.3f}%", "Alpha / Beta", "#a29bfe"),
+            metric_card("Treynor Ratio", f"{(ret_s.mean()*252/beta*100 if abs(beta) > 1e-10 else float('nan')):.3f}%", "Annual mean excess return / signed beta", "#a29bfe"),
         ), "blue")
 
         # ── Scatter plot with regression line ───────────────────────
@@ -255,7 +312,7 @@ def tab_finance():
             ri = run_ols(yi, Xi)
             roll_beta.append(ri["beta"][1])
             roll_r2.append(ri["r2"])
-        roll_idx = df.index[win:]
+        roll_idx = df.index[win-1:]
 
         fig2 = make_subplots(rows=2, cols=1, shared_xaxes=True,
                              row_heights=[0.65, 0.35],
@@ -325,7 +382,7 @@ def tab_finance():
                        ["Beta Range", "Classification", "Implication"],
                        [[bdg("β > 1.3","red"), "Highly Aggressive", "Amplifies market moves"],
                         [bdg("1.0–1.3","orange"), "Aggressive", "Slightly outperforms rising market"],
-                        [bdg("β = 1.0","gold"), "Market Neutral", "Moves with index"],
+                        [bdg("β = 1.0","gold"), "Market sensitivity about 1", "Similar market sensitivity"],
                         [bdg("0.7–1.0","teal"), "Defensive", "Less sensitive to market"],
                         [bdg("β < 0.7","green"), "Very Defensive", "Low systematic risk"]]),
                    "blue")
@@ -340,27 +397,20 @@ def tab_finance():
                 f'Note: SMB & HML proxied using Nifty-related ETFs (data availability on NSE)'
                 f'</div>')
 
-        with st.spinner("Fetching SMB/HML proxy data..."):
-            ff_df = fetch_ff_proxies(period)
-
-        if ff_df is None or len(ff_df) < 60:
-            render_ib(alert_box("⚠️ Could not fetch FF factor proxies. Using simulated factors for illustration.", "orange"))
-            # Simulate for illustration
-            np.random.seed(42)
-            n = len(df)
-            smb = np.random.normal(0.0002, 0.008, n)
-            hml = np.random.normal(0.0001, 0.007, n)
-            mkt = ret_m
-        else:
-            # Align indices
-            ff_aligned = ff_df.reindex(df.index, method="ffill").dropna()
-            min_len = min(len(ff_aligned), len(df))
-            smb = ff_aligned["smb"].values[:min_len]
-            hml = ff_aligned["hml"].values[:min_len]
-            mkt = ret_m[:min_len]
-            ret_s_ff = ret_s[:min_len]
-
-        ret_s_ff = ret_s[:len(mkt)]
+        st.warning("Exploratory ETF/stock proxy spreads are not genuine Fama-French SMB/HML factors. Do not interpret them as research-grade size/value factors.")
+        try:
+            with st.spinner("Fetching exploratory proxy data..."):
+                ff_df = fetch_ff_proxies(period)
+            aligned = df[["xs_stock", "xs_market"]].join(ff_df, how="inner").dropna()
+            if len(aligned) < 30:
+                raise ValueError("Fewer than 30 matching factor/stock return dates.")
+        except Exception as exc:
+            st.error(f"Proxy data unavailable: {exc}. No simulated factors were substituted.")
+            _bond_yield_section()
+            _pe_valuation_section()
+            return
+        smb, hml = aligned["smb"].to_numpy(), aligned["hml"].to_numpy()
+        mkt, ret_s_ff = aligned["xs_market"].to_numpy(), aligned["xs_stock"].to_numpy()
         X_ff = np.column_stack([np.ones(len(mkt)), mkt, smb, hml])
         res_ff = run_ols(ret_s_ff, X_ff)
         alpha_ff, beta_mkt, beta_smb, beta_hml = res_ff["beta"]
