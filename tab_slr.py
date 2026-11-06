@@ -34,23 +34,23 @@ def tab_slr():
                f'font-size:1.05rem;margin-bottom:8px">📐 The Regression Model</div>'
                + fml("Y = β₀ + β₁X + ε\n\nY  = Dependent variable (e.g. Stock Return)\n"
                      "X  = Independent variable (e.g. Market Return)\nβ₀ = Intercept (Alpha)\n"
-                     "β₁ = Slope (Beta) — change in Y per unit X\nε  = Error term (residual)")
+                     "β₁ = Slope (Beta) — change in Y per unit X\nε  = Unobserved population error; e = fitted residual")
                + p(f'{hl("Fitted line:")} Ŷ = β̂₀ + β̂₁X minimises Σ(Yᵢ − Ŷᵢ)²'),
                "gold"),
             ib(f'<div style="font-family:{FH};color:#ADD8E6;-webkit-text-fill-color:#ADD8E6;'
                f'font-size:1.05rem;margin-bottom:8px">💹 CAPM Beta Application</div>'
                + p(f'{lb_t("<strong>Security Characteristic Line (SCL):</strong>")}')
-               + fml("Rᵢ − Rf = αᵢ + βᵢ(Rₘ − Rf) + εᵢ\n\nRᵢ = Stock excess return\nRₘ = Market excess return\n"
+               + fml("Rᵢ − Rf = αᵢ + βᵢ(Rₘ − Rf) + εᵢ\n\nRᵢ = Stock return (before subtracting Rf)\nRₘ = Market return (before subtracting Rf)\n"
                       "α = Jensens Alpha (intercept)\nβ = Systematic Risk (slope)\nε = Idiosyncratic risk")
-               + p(f'{bdg("β > 1","red")} Aggressive &nbsp; {bdg("β = 1","gold")} Neutral &nbsp; {bdg("β < 1","green")} Defensive'),
+               + p(f'{bdg("β > 1","red")} Aggressive &nbsp; {bdg("β = 1","gold")} Unit market sensitivity &nbsp; {bdg("0 ≤ β < 1","green")} Defensive'),
                "blue"),
         )
     )
 
     # ── 2. OLS Estimation ─────────────────────────────────────────
     render_card("🔧 OLS Estimation — Ordinary Least Squares",
-        p(f'OLS finds β̂₀ and β̂₁ by {hl("minimising the sum of squared residuals (SSR)")}. '
-          f'The solution is {hl("analytical")} — no iteration required (Gauss-Markov BLUE).')
+        p(f'OLS finds β̂₀ and β̂₁ by {hl("minimising the sum of squared residuals (SSE)")}. '
+          f'The solution is {hl("analytical")} — no iteration required. BLUE also requires the Gauss-Markov conditions.')
         + two_col(
             fml("β̂₁ = Σ(Xᵢ−X̄)(Yᵢ−Ȳ) / Σ(Xᵢ−X̄)²\n"
                 "   = Cov(X,Y) / Var(X)\n"
@@ -66,7 +66,7 @@ def tab_slr():
                + p("Proportion of Y's variance explained by X. R² ∈ [0, 1].")
                + p(f'{hl("0.80")} → X explains 80% of Y variation'), "gold"),
             ib(f'<span style="color:#ADD8E6;-webkit-text-fill-color:#ADD8E6;font-weight:600">t-Test on β̂₁</span><br>'
-               + p(f'H₀: β₁ = 0 (no relationship)<br>t = β̂₁ / SE(β̂₁)<br>Reject if |t| > t_crit (df = n−2)'), "blue"),
+               + p(f'H₀: β₁ = 0 (no linear slope)<br>t = β̂₁ / SE(β̂₁)<br>Reject if |t| > t_crit (df = n−2)'), "blue"),
             ib(f'<span style="color:#28a745;-webkit-text-fill-color:#28a745;font-weight:600">F-Test (ANOVA)</span><br>'
                + p(f'H₀: β₁ = 0<br>F = MSR/MSE ~ F(1,n−2)<br>In SLR: F = t² (equivalent)'), "green"),
         )
@@ -74,16 +74,16 @@ def tab_slr():
 
     # ── 3. CLRM Assumptions ───────────────────────────────────────
     render_card("⚙ CLRM Assumptions — Gauss-Markov Theorem",
-        p(f'For OLS to be {hl("BLUE")} (Best Linear Unbiased Estimator), the following must hold:')
+        p(f'Gauss-Markov conditions support {hl("BLUE")} (Best Linear Unbiased Estimator). Normality is additional for exact classical small-sample inference, not a BLUE requirement.')
         + table_html(
             ["#", "Assumption", "Mathematical Statement", "Violation → Problem"],
             [
-                ["1", bdg("Linearity","blue"),      txt_s("E(ε|X) = 0; true model is linear in parameters"), txt_s("Biased, inconsistent β̂")],
-                ["2", bdg("No Multicollinearity","gold"), txt_s("No perfect linear combo of regressors (MLR)"), txt_s("Inflated SE, unstable β̂")],
+                ["1", bdg("Linearity","blue"),      txt_s("E(Y|X) = β₀ + β₁X; specified conditional mean"), txt_s("Biased, inconsistent β̂")],
+                ["2", bdg("No Multicollinearity","gold"), txt_s("SLR: X must vary. MLR: full column rank"), txt_s("Inflated SE, unstable β̂")],
                 ["3", bdg("Homoscedasticity","green"), txt_s("Var(εᵢ) = σ² ∀i (constant variance)"), txt_s("Inefficient OLS, incorrect SE")],
                 ["4", bdg("No Autocorrelation","orange"), txt_s("Cov(εᵢ,εⱼ) = 0 for i≠j"), txt_s("DW test fails; biased SE in time series")],
                 ["5", bdg("Normality","purple"),    txt_s("ε ~ N(0,σ²) for finite sample inference"), txt_s("Invalid t/F tests (small samples)")],
-                ["6", bdg("Exogeneity","teal"),     txt_s("Cov(Xᵢ,εᵢ) = 0; X is non-stochastic"), txt_s("Endogeneity bias; need IV")],
+                ["6", bdg("Exogeneity","teal"),     txt_s("E(ε|X) = 0; X may be stochastic"), txt_s("Endogeneity bias; need IV")],
             ])
     )
 
@@ -165,7 +165,7 @@ def tab_slr():
                    "earns abnormal return beyond CAPM"), "blue")
         )
         + p(f'{hl("Coefficient of Correlation (r):")} β̂₁ = r × (Sʏ/Sˣ) → '
-            f'same sign as r; {hl("r² = R²")} in SLR')
+            f'same sign as r; {hl("r² = R²")} in SLR with an intercept')
     )
 
     # ── 6. Key metrics cheat sheet ────────────────────────────────
@@ -173,7 +173,7 @@ def tab_slr():
         table_html(
             ["Metric", "Formula", "Finance Interpretation", "Good Value"],
             [
-                [hl("R²"),         acc_t("SSR/SST = 1 − SSE/SST"), txt_s("% of stock return explained by market"), bdg("CAPM: 0.3–0.7","green")],
+                [hl("R²"),         acc_t("SSR/SST = 1 − SSE/SST"), txt_s("% of stock return explained by market"), bdg("No universal target","green")],
                 [hl("Adj. R²"),    acc_t("1 − (1−R²)(n−1)/(n−k)"), txt_s("R² penalised for extra predictors"),    bdg("Higher better","teal")],
                 [hl("Beta (β̂₁)"),  acc_t("Cov(X,Y)/Var(X)"),        txt_s("Systematic risk; market sensitivity"),  bdg("1.0 = market","gold")],
                 [hl("Alpha (β̂₀)"), acc_t("Ȳ − β̂₁X̄"),               txt_s("Jensen's alpha — abnormal return"),     bdg("> 0 = outperform","green")],
