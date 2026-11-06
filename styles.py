@@ -10,11 +10,11 @@ def inject_css():
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Source+Sans+Pro:wght@300;400;600&family=JetBrains+Mono:wght@400;600&display=swap');
 
 .stApp { background:linear-gradient(135deg,#1a2332,#243447,#2a3f5f) !important; font-family:'Source Sans Pro',sans-serif !important; }
-#MainMenu,footer,header { visibility:hidden; }
+footer { visibility:hidden; }
 .block-container { padding-top:1rem !important; max-width:1240px; }
 
 .stTabs [data-baseweb="tab-list"] { background:#112240 !important; border-radius:8px; padding:4px; gap:4px; border:1px solid #1e3a5f; flex-wrap:wrap; }
-.stTabs [data-baseweb="tab"] { background:transparent !important; color:#8892b0 !important; font-family:'Source Sans Pro',sans-serif !important; font-weight:600 !important; font-size:.88rem !important; border-radius:6px !important; padding:8px 16px !important; border:none !important; transition:all .25s !important; }
+.stTabs [data-baseweb="tab"] { background:transparent !important; color:#afbed2 !important; font-family:'Source Sans Pro',sans-serif !important; font-weight:600 !important; font-size:.88rem !important; border-radius:6px !important; padding:8px 16px !important; border:none !important; transition:all .25s !important; }
 .stTabs [data-baseweb="tab"]:hover { color:#FFD700 !important; background:rgba(0,77,128,.3) !important; }
 .stTabs [aria-selected="true"] { background:#003366 !important; color:#FFD700 !important; border:1px solid #FFD700 !important; }
 .stTabs [data-baseweb="tab-border"] { display:none !important; }
@@ -55,5 +55,13 @@ iframe { border:none !important; }
 ::-webkit-scrollbar { width:6px; height:6px; }
 ::-webkit-scrollbar-track { background:#0d1b2a; }
 ::-webkit-scrollbar-thumb { background:#003366; border-radius:3px; }
+html { font-size:18px; }
+.stApp { color:#e6f1ff !important; }
+[data-testid="stMarkdownContainer"] p,[data-testid="stMarkdownContainer"] li { color:#e6f1ff; line-height:1.75; }
+[data-testid="stCaptionContainer"] { color:#bccbdb !important; }
+a { color:#8fd6ff; }
+.stDownloadButton button { background:#164b70; color:#ffe39a; border:1px solid #dfb65c; border-radius:8px; }
+button:focus-visible,a:focus-visible { outline:3px solid #ffe39a!important; outline-offset:3px; }
+@media(max-width:700px) { html { font-size:16px; } .block-container { padding:1rem!important; } }
 </style>
 """, unsafe_allow_html=True)
