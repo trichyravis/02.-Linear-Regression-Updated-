@@ -8,7 +8,7 @@ import streamlit as st
 S = {
     "txt":  "#e6f1ff", "gold": "#FFD700", "lb":   "#ADD8E6",
     "grn":  "#28a745", "red":  "#dc3545", "acc":  "#64ffda",
-    "mut":  "#8892b0", "card": "#112240", "blue": "#003366",
+    "mut":  "#afbed2", "card": "#112240", "blue": "#003366",
     "mid":  "#004d80", "dark": "#0a1628", "bdr":  "#1e3a5f",
     "org":  "#ff9f43", "pur":  "#a29bfe", "teal": "#00cec9",
     "amb":  "#fdcb6e",
@@ -17,7 +17,7 @@ FH = "'Playfair Display',serif"
 FB = "'Source Sans Pro',sans-serif"
 FM = "'JetBrains Mono',monospace"
 TXT = f"color:#e6f1ff;font-family:{FB};line-height:1.65;-webkit-text-fill-color:#e6f1ff"
-NO_SEL = "user-select:none;-webkit-user-select:none"
+NO_SEL = "user-select:text;-webkit-user-select:text"
 
 _IB = {
     "blue":   ("rgba(0,51,102,0.6)",    "#ADD8E6"),
@@ -58,7 +58,7 @@ def render_ib(content, variant="blue"): st.html(ib(content, variant))
 
 def fml(content):
     return (f'<div style="background:#0d1f3a;border-left:4px solid #FFD700;border-radius:6px;'
-            f'padding:13px 17px;margin:10px 0;font-family:{FM};font-size:.88rem;'
+            f'padding:13px 17px;margin:10px 0;font-family:{FM};font-size:1rem;'
             f'color:#64ffda;-webkit-text-fill-color:#64ffda;line-height:1.85;'
             f'white-space:pre-wrap;overflow-x:auto;{NO_SEL}">{content}</div>')
 
@@ -71,11 +71,11 @@ def bdg(text, variant="blue"):
 def metric_card(label, value, sub="", accent="#FFD700"):
     return (f'<div style="background:#112240;border:1px solid #1e3a5f;border-radius:10px;'
             f'padding:16px 14px;text-align:center;{NO_SEL}">'
-            f'<div style="color:#8892b0;-webkit-text-fill-color:#8892b0;font-family:{FB};'
+            f'<div style="color:#afbed2;-webkit-text-fill-color:#afbed2;font-family:{FB};'
             f'font-size:.8rem;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">{label}</div>'
             f'<div style="font-family:{FM};font-size:1.4rem;font-weight:700;'
             f'color:{accent};-webkit-text-fill-color:{accent}">{value}</div>'
-            f'{"" if not sub else f"""<div style="color:#8892b0;-webkit-text-fill-color:#8892b0;font-family:{FB};font-size:.78rem;margin-top:4px">{sub}</div>"""}'
+            f'{"" if not sub else f"""<div style="color:#afbed2;-webkit-text-fill-color:#afbed2;font-family:{FB};font-size:.78rem;margin-top:4px">{sub}</div>"""}'
             f'</div>')
 
 def metric_row(metrics):
@@ -83,13 +83,13 @@ def metric_row(metrics):
     cols = "".join(f'<div>{metric_card(l, v, s, a)}</div>'
                    for l, v, s, a in metrics)
     n = len(metrics)
-    st.html(f'<div style="display:grid;grid-template-columns:repeat({n},1fr);gap:12px;'
+    st.html(f'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:12px;'
             f'margin:14px 0;{NO_SEL}">{cols}</div>')
 
 def stat_box(label, value, color="#ADD8E6"):
     return (f'<div style="background:#0d1f3a;border-radius:6px;padding:10px 14px;'
             f'text-align:center;{NO_SEL}">'
-            f'<div style="color:#8892b0;-webkit-text-fill-color:#8892b0;font-size:.78rem;'
+            f'<div style="color:#afbed2;-webkit-text-fill-color:#afbed2;font-size:.78rem;'
             f'font-family:{FB};margin-bottom:4px">{label}</div>'
             f'<div style="color:{color};-webkit-text-fill-color:{color};font-family:{FM};'
             f'font-weight:700;font-size:1.05rem">{value}</div>'
@@ -104,11 +104,11 @@ def hero_metric(label, value, sub="", trend="", accent="#FFD700"):
     return (f'<div style="background:linear-gradient(135deg,#112240,#0d1b2a);'
             f'border:1px solid #1e3a5f;border-top:3px solid {accent};border-radius:10px;'
             f'padding:18px 16px;text-align:center;{NO_SEL}">'
-            f'<div style="color:#8892b0;-webkit-text-fill-color:#8892b0;font-family:{FB};'
+            f'<div style="color:#afbed2;-webkit-text-fill-color:#afbed2;font-family:{FB};'
             f'font-size:.82rem;text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">{label}</div>'
             f'<div style="font-family:{FM};font-size:1.6rem;font-weight:700;'
             f'color:{accent};-webkit-text-fill-color:{accent}">{trend_html}{value}</div>'
-            f'{"" if not sub else f"""<div style="color:#8892b0;-webkit-text-fill-color:#8892b0;font-family:{FB};font-size:.8rem;margin-top:5px">{sub}</div>"""}'
+            f'{"" if not sub else f"""<div style="color:#afbed2;-webkit-text-fill-color:#afbed2;font-family:{FB};font-size:.8rem;margin-top:5px">{sub}</div>"""}'
             f'</div>')
 
 def hero_row(metrics):
@@ -116,7 +116,7 @@ def hero_row(metrics):
     cols = "".join(f'<div>{hero_metric(l, v, s, t, a)}</div>'
                    for l, v, s, t, a in metrics)
     n = len(metrics)
-    st.html(f'<div style="display:grid;grid-template-columns:repeat({n},1fr);gap:14px;'
+    st.html(f'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:14px;'
             f'margin:16px 0;{NO_SEL}">{cols}</div>')
 
 # ── Text helpers ──────────────────────────────────────────────────────────────
@@ -146,15 +146,15 @@ def steps_html(steps):
     return rows
 
 def two_col(left, right):
-    return (f'<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:10px 0">'
+    return (f'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:16px;margin:10px 0">'
             f'<div>{left}</div><div>{right}</div></div>')
 
 def three_col(a, b, c):
-    return (f'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin:10px 0">'
+    return (f'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:14px;margin:10px 0">'
             f'<div>{a}</div><div>{b}</div><div>{c}</div></div>')
 
 def four_col(a, b, c, d):
-    return (f'<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin:10px 0">'
+    return (f'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:12px;margin:10px 0">'
             f'<div>{a}</div><div>{b}</div><div>{c}</div><div>{d}</div></div>')
 
 def table_html(headers, rows, stripe=True):
@@ -169,7 +169,7 @@ def table_html(headers, rows, stripe=True):
                         for c in row)
         trs += f'<tr>{cells}</tr>'
     return (f'<div style="overflow-x:auto;margin:10px 0;{NO_SEL}">'
-            f'<table style="width:100%;border-collapse:collapse;font-size:.88rem">'
+            f'<table style="width:100%;border-collapse:collapse;font-size:1rem">'
             f'<thead><tr>{ths}</tr></thead><tbody>{trs}</tbody></table></div>')
 
 def progress_bar(label, value, max_val=100, color="#FFD700"):
@@ -192,7 +192,7 @@ def alert_box(message, variant="blue"):
             f'{icon} {message}</div>')
 
 def formula_block(title, formula, note=""):
-    note_html = f'<div style="color:#8892b0;-webkit-text-fill-color:#8892b0;font-family:{FB};font-size:.82rem;margin-top:8px">{note}</div>' if note else ""
+    note_html = f'<div style="color:#afbed2;-webkit-text-fill-color:#afbed2;font-family:{FB};font-size:.82rem;margin-top:8px">{note}</div>' if note else ""
     return (f'<div style="background:#0d1f3a;border:1px solid #1e3a5f;border-radius:8px;'
             f'padding:16px;margin:10px 0;{NO_SEL}">'
             f'<div style="color:#FFD700;-webkit-text-fill-color:#FFD700;font-family:{FH};'
