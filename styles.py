@@ -63,5 +63,10 @@ a { color:#8fd6ff; }
 .stDownloadButton button { background:#164b70; color:#ffe39a; border:1px solid #dfb65c; border-radius:8px; }
 button:focus-visible,a:focus-visible { outline:3px solid #ffe39a!important; outline-offset:3px; }
 @media(max-width:700px) { html { font-size:16px; } .block-container { padding:1rem!important; } }
+[data-testid="stAlert"] { background:#183b55!important; border:1px solid #6994b1!important; color:#e9f4ff!important; }
+[data-testid="stAlert"] [data-testid="stMarkdownContainer"] p { color:#e9f4ff!important; -webkit-text-fill-color:#e9f4ff!important; }
+[data-testid="stMarkdownContainer"] a { color:#8fd6ff!important; -webkit-text-fill-color:#8fd6ff!important; text-decoration:underline; }
+section[data-testid="stSidebar"] h3 { color:#f6d783!important; -webkit-text-fill-color:#f6d783!important; }
+[data-testid="stHeader"] { background:#122b42!important; }
 </style>
 """, unsafe_allow_html=True)
