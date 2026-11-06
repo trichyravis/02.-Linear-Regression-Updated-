@@ -24,7 +24,10 @@ PLOTLY_LAYOUT = dict(
 )
 
 def run_ols_full(y, X):
+    y, X = np.asarray(y,dtype=float), np.asarray(X,dtype=float)
     n, k = len(y), X.shape[1]
+    if n <= k or np.linalg.matrix_rank(X) < k or not np.isfinite(X).all() or not np.isfinite(y).all() or np.var(y) <= 0:
+        raise ValueError("OLS requires finite, nonconstant data, full column rank and positive residual degrees of freedom.")
     b = np.linalg.lstsq(X, y, rcond=None)[0]
     yhat = X @ b; resid = y - yhat
     sse = np.sum(resid**2); sst = np.sum((y - y.mean())**2)
@@ -34,13 +37,17 @@ def run_ols_full(y, X):
     se = np.sqrt(np.diag(XtXinv) * mse)
     t_stats = b / se; p_vals = 2*(1 - stats.t.cdf(np.abs(t_stats), n-k))
     f_stat = (r2/(k-1))/((1-r2)/(n-k)); f_pval = 1 - stats.f.cdf(f_stat, k-1, n-k)
-    vif = [np.nan] + [1/(1 - np.linalg.lstsq(
-        np.column_stack([np.ones(n), np.delete(X[:,1:], j, axis=1)]),
-        X[:,j+1], rcond=None)[3]) if X.shape[1] > 2 else 1.0
-        for j in range(k-1)]
+    # VIF uses an auxiliary regression R-squared, not singular values.
+    vif = [np.nan]
+    for j in range(1, k):
+        auxiliary = np.delete(X, j, axis=1)
+        target = X[:, j]
+        target_sst = np.sum((target-target.mean())**2)
+        target_sse = np.sum((target-auxiliary @ np.linalg.lstsq(auxiliary,target,rcond=None)[0])**2)
+        vif.append(target_sst/target_sse if target_sse > 1e-20 else np.inf)
     return dict(beta=b, yhat=yhat, resid=resid, r2=r2, adj_r2=adj_r2,
                 se=se, t_stats=t_stats, p_vals=p_vals,
-                f_stat=f_stat, f_pval=f_pval, n=n, k=k, mse=mse)
+                f_stat=f_stat, f_pval=f_pval, n=n, k=k, mse=mse, vif=np.array(vif))
 
 
 def tab_mlr():
@@ -67,8 +74,8 @@ def tab_mlr():
 
     render_card("🔑 MLR Goodness of Fit & Inference",
         three_col(
-            ib(fml("R² = SSR/SST = 1 − SSE/SST\n\nAlways increases when\nwe add more predictors!\n(Even irrelevant ones)"), "gold"),
-            ib(fml("Adj. R² = 1 − (1−R²)(n−1)/(n−k)\n\nPenalises for extra predictors.\nUse for model comparison.\nPreferred over R² in MLR."), "blue"),
+            ib(fml("R² = SSR/SST = 1 − SSE/SST\n\nNever decreases when\nwe add more predictors!\n(Even irrelevant ones)"), "gold"),
+            ib(fml("Adj. R² = 1 − (1−R²)(n−1)/(n−k−1)\n\nPenalises for extra predictors.\nUse for model comparison.\nPreferred over R² in MLR."), "blue"),
             ib(fml("F-test: H₀: β₁=β₂=…=βₖ=0\nF = (R²/k) / ((1−R²)/(n−k−1))\n~F(k, n−k−1) under H₀\n\nReject if p < 0.05"), "green")
         )
     )
@@ -83,14 +90,14 @@ def tab_mlr():
     with c1: b_mkt = st.slider("True β_MKT", 0.4, 2.0, 1.1, 0.05)
     with c2: b_smb = st.slider("True β_SMB", -0.5, 1.5, 0.4, 0.05)
     with c3: b_hml = st.slider("True β_HML", -0.5, 1.0, 0.2, 0.05)
-    with c4: noise = st.slider("Idio. Noise %", 0.5, 3.5, 1.2, 0.1)
+    with c4: noise = st.slider("Daily Idio. Noise %", 0.5, 3.5, 1.2, 0.1)
 
     np.random.seed(99)
     n = 250
     mkt = np.random.normal(0.0004, 0.012, n)
     smb = np.random.normal(0.0001, 0.008, n)
     hml = np.random.normal(0.0001, 0.007, n)
-    eps = np.random.normal(0, noise/100/np.sqrt(252), n)
+    eps = np.random.normal(0, noise/100, n)
     y   = 0.0002 + b_mkt*mkt + b_smb*smb + b_hml*hml + eps
 
     X_ff = np.column_stack([np.ones(n), mkt, smb, hml])
