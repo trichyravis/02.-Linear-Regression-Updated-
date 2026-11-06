@@ -21,7 +21,7 @@ from components import (
     render_card, ib, render_ib, fml, bdg, hl, gt, rt2, org, pur,
     lb_t, acc_t, txt_s, teal_t, p, two_col, three_col, four_col,
     table_html, hero_row, metric_card, metric_row, section_heading,
-    alert_box, formula_block, S, FH, FB, FM, TXT, NO_SEL
+    alert_box, formula_block, stat_box, S, FH, FB, FM, TXT, NO_SEL
 )
 
 # ── Nifty 50 universe (aligned with VaR app) ─────────────────────
@@ -361,7 +361,7 @@ def tab_finance():
                                xaxis_title="Theoretical Quantiles", yaxis_title="Sample Quantiles (%)", height=280)
             st.plotly_chart(fig4, use_container_width=True)
 
-        jb_ok = bdg("PASS – Normal","green") if jb_p > 0.05 else bdg("FAIL – Non-Normal","red")
+        jb_ok = bdg("Normality not rejected","green") if jb_p > 0.05 else bdg("Normality rejected","red")
         dw_ok = bdg("No Autocorrelation","green") if 1.5 < dw < 2.5 else bdg("Check Autocorrelation","orange")
         render_ib(four_col(
             stat_box("Jarque-Bera Stat", f"{jb_stat:.3f}", "#ff9f43"),
