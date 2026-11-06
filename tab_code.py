@@ -35,19 +35,15 @@ def ols_slr(x, y):
                 t_beta=t_b1, p_beta=p_b1, dw=dw,
                 resid=resid, yhat=y_hat)
 
-# ── 2. CAPM Beta using yfinance (live NSE data) ─────────────────
+# ── 2. CAPM Beta using yfinance (latest available daily NSE history) ─────────────────
 import yfinance as yf
 import pandas as pd
 
 def estimate_capm_beta(ticker, period="1y", rf_annual=6.5):
-    stock = yf.download(ticker, period=period, auto_adjust=True)["Close"]
-    nifty = yf.download("^NSEI", period=period, auto_adjust=True)["Close"]
-    df    = pd.DataFrame({"s": stock, "m": nifty}).dropna()
-    r_s   = np.log(df["s"] / df["s"].shift(1)).dropna()
-    r_m   = np.log(df["m"] / df["m"].shift(1)).dropna()
-    rf    = rf_annual / 252 / 100  # daily risk-free rate
-    xs_s  = r_s - rf
-    xs_m  = r_m - rf
+    # Reuse the app's normalized data loader (same return convention and dates).
+    from tab_finance import fetch_data
+    df = fetch_data(ticker, "^NSEI", period, rf_annual)
+    xs_s, xs_m = df["xs_stock"], df["xs_market"]
     common = xs_s.index.intersection(xs_m.index)
     res   = ols_slr(xs_m.loc[common].values, xs_s.loc[common].values)
     return res
@@ -232,7 +228,7 @@ fig.show()
 def tab_code():
     render_card("🐍 Python Implementation — OLS, CAPM & Fama-French",
         p(f'Production-quality Python code for all regression models. '
-          f'Uses {hl("NumPy OLS from scratch")} and {hl("yfinance for live NSE data")}. '
+          f'Uses {hl("NumPy OLS from scratch")} and {hl("yfinance for latest available daily NSE history")}. '
           f'Compatible with pandas, scipy, and plotly.')
     )
 
