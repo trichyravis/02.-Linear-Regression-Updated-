@@ -49,7 +49,7 @@ NIFTY_STOCKS = {
 MARKET = "^NSEI"  # Nifty 50 index
 
 PERIODS = {"3 Months": "3mo", "6 Months": "6mo", "1 Year": "1y",
-           "2 Years": "2y", "3 Years": "3y", "5 Years": "5y"}
+           "2 Years": "2y", "3 Years": "3y", "5 Years": "5y", "Custom dates": "custom"}
 
 PLOTLY_LAYOUT = dict(
     paper_bgcolor="#0d1b2a", plot_bgcolor="#112240",
@@ -66,7 +66,11 @@ def _close_series(ticker, period):
     """Return one numeric, dated series despite Yahoo's MultiIndex columns."""
     options = dict(interval="1d", auto_adjust=True, progress=False,
                    threads=False, timeout=20)
-    if period == "3y":
+    if ":" in period:
+        start_text, end_text = period.split(":", 1)
+        raw = yf.download(ticker, start=start_text,
+                          end=(pd.Timestamp(end_text)+pd.Timedelta(days=1)).date(), **options)
+    elif period == "3y":
         end = pd.Timestamp.now(tz="Asia/Kolkata").date()
         start = pd.Timestamp(end) - pd.DateOffset(years=3)
         raw = yf.download(ticker, start=start.date(), end=end, **options)
@@ -178,10 +182,18 @@ def tab_finance():
         st.html(f'<div style="font-family:{FH};color:#FFD700;-webkit-text-fill-color:#FFD700;'
                 f'font-size:1.1rem;font-weight:700;padding:8px 0;border-bottom:1px solid #1e3a5f;'
                 f'margin-bottom:12px;{NO_SEL}">📊 Finance Lab Controls</div>')
-        sel_name = st.selectbox("📡 Select NSE Stock", list(NIFTY_STOCKS.keys()), index=0)
+        sel_name = st.selectbox("📡 Search and select NSE stock", list(NIFTY_STOCKS.keys()), index=0, help="Click and type to search. Use the optional ticker field for another Yahoo NSE symbol.")
         sel_ticker = NIFTY_STOCKS[sel_name]
         period_label = st.selectbox("📅 Data Period", list(PERIODS.keys()), index=2)
         period = PERIODS[period_label]
+        if period == "custom":
+            latest = (pd.Timestamp.now(tz="Asia/Kolkata")-pd.Timedelta(days=1)).date()
+            start_date = st.date_input("Start date", value=(pd.Timestamp(latest)-pd.DateOffset(years=1)).date(), min_value=pd.Timestamp("1995-01-01").date(), max_value=latest)
+            end_date = st.date_input("End date (inclusive)", value=latest, min_value=pd.Timestamp("1995-01-01").date(), max_value=latest)
+            if start_date >= end_date:
+                st.warning("Choose a start date earlier than the end date.")
+                return
+            period = f"{start_date.isoformat()}:{end_date.isoformat()}"
         model_type = st.radio("📐 Model", ["CAPM (SLR)", "Exploratory proxy-factor model (MLR)"], index=0)
         custom_symbol = st.text_input("Optional Yahoo NSE ticker", placeholder="e.g. RELIANCE.NS").strip().upper()
         if custom_symbol:
