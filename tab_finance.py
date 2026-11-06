@@ -61,6 +61,7 @@ PLOTLY_LAYOUT = dict(
 )
 
 # ── Data helpers ──────────────────────────────────────────────────
+@st.cache_data(ttl=900, show_spinner=False)
 def _close_series(ticker, period):
     """Return one numeric, dated series despite Yahoo's MultiIndex columns."""
     options = dict(interval="1d", auto_adjust=True, progress=False,
@@ -126,7 +127,7 @@ def fetch_ff_proxies(period):
     return pd.DataFrame({"smb": returns["small"]-returns["large"],
                          "hml": returns["value"]-returns["growth"]})
 
-def run_ols(y, X):
+def run_ols(y, X, covariance="Classical", maxlags=5):
     """Run OLS and return full stats dict"""
     y, X = np.asarray(y, dtype=float), np.asarray(X, dtype=float)
     n, k = len(y), X.shape[1]
@@ -143,7 +144,20 @@ def run_ols(y, X):
     adj_r2 = 1 - (1-r2)*(n-1)/(n-k)
     mse = sse / (n-k)
     XtXinv = np.linalg.inv(X.T @ X)
-    se = np.sqrt(np.diag(XtXinv) * mse)
+    cov = XtXinv * mse
+    if covariance == "HC3":
+        leverage = np.sum((X @ XtXinv) * X, axis=1)
+        scaled = resid / np.maximum(1-leverage, 1e-10)
+        cov = XtXinv @ (X.T @ ((scaled**2)[:, None] * X)) @ XtXinv
+    elif covariance == "HAC":
+        score = X * resid[:, None]
+        meat = score.T @ score
+        lag_count = min(int(maxlags), n-1)
+        for lag in range(1, lag_count+1):
+            cross = score[lag:].T @ score[:-lag]
+            meat += (1-lag/(lag_count+1)) * (cross+cross.T)
+        cov = (n/(n-k)) * XtXinv @ meat @ XtXinv
+    se = np.sqrt(np.maximum(np.diag(cov), 0))
     t_stats = b / se
     p_vals  = 2 * (1 - stats.t.cdf(np.abs(t_stats), df=n-k))
     f_stat  = (r2/(k-1)) / ((1-r2)/(n-k))
@@ -168,10 +182,10 @@ def tab_finance():
         sel_ticker = NIFTY_STOCKS[sel_name]
         period_label = st.selectbox("📅 Data Period", list(PERIODS.keys()), index=2)
         period = PERIODS[period_label]
-        model_type = st.radio("📐 Model", ["CAPM (SLR)", "Fama-French 3-Factor (MLR)"], index=0)
+        model_type = st.radio("📐 Model", ["CAPM (SLR)", "Exploratory proxy-factor model (MLR)"], index=0)
         custom_symbol = st.text_input("Optional Yahoo NSE ticker", placeholder="e.g. RELIANCE.NS").strip().upper()
         if custom_symbol:
-            if not custom_symbol.endswith(".NS") or len(custom_symbol) > 35 or any(c.isspace() for c in custom_symbol):
+            if not __import__("re").fullmatch(r"[A-Z0-9&._-]{1,32}\.NS", custom_symbol):
                 st.error("Enter a Yahoo NSE symbol ending in .NS.")
                 return
             sel_ticker, sel_name = custom_symbol, custom_symbol
@@ -180,8 +194,11 @@ def tab_finance():
         st.caption("User assumption, not a downloaded current RBI/T-bill rate. Converted to a daily effective rate using 252 trading days.")
         st.markdown("**Market data source:** [Yahoo Finance — Nifty 50](https://finance.yahoo.com/quote/%5ENSEI/history/)")
         if st.button("Refresh Yahoo data", key="refresh_yahoo"):
+            _close_series.clear()
             fetch_data.clear()
             fetch_ff_proxies.clear()
+        covariance = st.selectbox("Coefficient uncertainty", ["HAC", "HC3", "Classical"], help="HAC: weak serial dependence and heteroscedasticity. HC3: heteroscedasticity. Classical: constant-variance uncorrelated errors.")
+        hac_lags = st.slider("HAC lag count", 1, 20, 5) if covariance == "HAC" else 5
         conf = st.slider("Confidence Level (%)", 90, 99, 95) / 100
 
     st.html(f'<div style="font-family:{FH};font-size:.95rem;color:#8892b0;'
@@ -213,13 +230,20 @@ def tab_finance():
     with st.expander("View downloaded Yahoo prices and calculated returns"):
         st.dataframe(df.tail(20), use_container_width=True)
     st.download_button("Download Yahoo regression data (CSV)", df.to_csv(index_label="Date"), file_name=f"{sel_ticker}_nifty_regression.csv", mime="text/csv")
+    last_date = df.index.max()
+    age_days = (pd.Timestamp.now(tz="Asia/Kolkata").tz_localize(None).normalize() - last_date).days
+    if age_days > 5:
+        st.warning(f"Latest common completed price is {age_days} calendar days old. Check holidays, symbol history and Yahoo availability before interpreting results.")
+    st.caption(f"Coefficient covariance: {covariance}. Robust t-tests use an approximate t reference with n−k degrees of freedom. The displayed model F statistic remains the conventional OLS F test; robust covariance does not repair endogeneity.")
+    with st.expander("Compare price performance — rebased to 100"):
+        st.line_chart(df[["stock", "market"]].div(df[["stock", "market"]].iloc[0]).mul(100))
     ret_s = df["xs_stock"].values
     ret_m = df["xs_market"].values
 
     # ── CAPM (SLR) ───────────────────────────────────────────────────
     if model_type == "CAPM (SLR)":
         X = np.column_stack([np.ones(len(ret_m)), ret_m])
-        res = run_ols(ret_s, X)
+        res = run_ols(ret_s, X, covariance, hac_lags)
         alpha, beta = res["beta"]
         r2, adj_r2 = res["r2"], res["adj_r2"]
         dw = res["dw"]
@@ -231,6 +255,16 @@ def tab_finance():
         sys_risk = beta**2 * ret_m.var() / ret_s.var() * 100
         idio_risk = (1 - r2) * 100
 
+        split = int(n * 0.8)
+        if split >= 20 and n - split >= 10:
+            train_X, test_X = X[:split], X[split:]
+            train_beta = np.linalg.lstsq(train_X, ret_s[:split], rcond=None)[0]
+            test_pred = test_X @ train_beta
+            rmse = np.sqrt(np.mean((ret_s[split:]-test_pred)**2))*100
+            benchmark = np.sqrt(np.mean((ret_s[split:]-ret_s[:split].mean())**2))*100
+            with st.expander("Chronological holdout — conditional evaluation"):
+                st.write(f"Last {n-split} observations: regression RMSE {rmse:.4f} percentage points; training-mean benchmark {benchmark:.4f} percentage points.")
+                st.caption("Uses the realised same-day Nifty return. This evaluates a conditional relationship, not an advance trading forecast. Coefficients are fitted only on the earlier 80% of observations.")
         # Header
         render_card(f"📡 CAPM Beta — {sel_name} vs Nifty 50 ({period_label})",
             p(f'Security Characteristic Line: {hl("Rᵢ − Rf = α + β(Rₘ − Rf) + ε")}'
@@ -238,7 +272,7 @@ def tab_finance():
             + fml(f"Estimated SCL: R_excess = {alpha*100:.4f}% + {beta:.4f} × R_market\n"
                   f"Jensen's Alpha (α) = {alpha*252*100:.2f}% per annum\n"
                   f"Beta (β)           = {beta:.4f} — "
-                  + ("Aggressive (β > 1)" if beta > 1 else "Defensive (β < 1)" if beta < 1 else "Neutral (β = 1)")
+                  + ("Aggressive (β > 1)" if beta > 1 else "Defensive (β < 1)" if beta < 1 else "Unit market sensitivity (β = 1)")
                   + f"\nR² = {r2:.4f} → Systematic risk explains {r2*100:.1f}% of return variation")
         )
 
@@ -362,7 +396,7 @@ def tab_finance():
             st.plotly_chart(fig4, use_container_width=True)
 
         jb_ok = bdg("Normality not rejected","green") if jb_p > 0.05 else bdg("Normality rejected","red")
-        dw_ok = bdg("No Autocorrelation","green") if 1.5 < dw < 2.5 else bdg("Check Autocorrelation","orange")
+        dw_ok = bdg("DW near 2: heuristic","green") if 1.5 < dw < 2.5 else bdg("Check Autocorrelation","orange")
         render_ib(four_col(
             stat_box("Jarque-Bera Stat", f"{jb_stat:.3f}", "#ff9f43"),
             stat_box("JB p-value", f"{jb_p:.4f}", "#ff9f43"),
@@ -391,7 +425,7 @@ def tab_finance():
 
     # ── Fama-French 3-Factor ─────────────────────────────────────────
     else:
-        section_heading("📊 Fama-French 3-Factor Model")
+        section_heading("📊 Exploratory Proxy-Factor Model")
         st.html(f'<div style="color:#8892b0;-webkit-text-fill-color:#8892b0;font-family:{FB};'
                 f'font-size:.88rem;margin-bottom:12px;{NO_SEL}">'
                 f'Note: SMB & HML proxied using Nifty-related ETFs (data availability on NSE)'
@@ -412,10 +446,10 @@ def tab_finance():
         smb, hml = aligned["smb"].to_numpy(), aligned["hml"].to_numpy()
         mkt, ret_s_ff = aligned["xs_market"].to_numpy(), aligned["xs_stock"].to_numpy()
         X_ff = np.column_stack([np.ones(len(mkt)), mkt, smb, hml])
-        res_ff = run_ols(ret_s_ff, X_ff)
+        res_ff = run_ols(ret_s_ff, X_ff, covariance, hac_lags)
         alpha_ff, beta_mkt, beta_smb, beta_hml = res_ff["beta"]
 
-        render_card("Fama-French 3-Factor Regression Results",
+        render_card("Exploratory Proxy-Factor Regression Results",
             p(f'Model: {hl("Rᵢ − Rf = α + β_MKT(MKT) + β_SMB(SMB) + β_HML(HML) + ε")}'
               f'  |  n = {hl(str(res_ff["n"]))} trading days')
             + fml(f"α (Intercept)  = {alpha_ff*100:.5f}%  (p = {res_ff['p_vals'][0]:.4f})\n"
