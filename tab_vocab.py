@@ -9,6 +9,7 @@ from components import (
 )
 
 def tab_vocab():
+    st.caption("Notation in this reference: k is the number of predictors excluding the intercept, so residual degrees of freedom are n−k−1. R² and variance decompositions refer to an in-sample model with an intercept.")
     render_card("📚 Education Hub — Concepts, Formulas & Finance Glossary",
         p(f'Complete reference for {hl("Linear Regression")} theory, statistical tests, '
           f'and {hl("Indian capital market applications")} (CAPM, Fama-French, NSE context).')
@@ -25,7 +26,7 @@ def tab_vocab():
                 "SE(β̂₁) = √(MSE / Σ(Xᵢ−X̄)²)\nMSE = SSE/(n−2)"),
             fml("MLR (matrix form):\nβ̂ = (X'X)⁻¹X'Y\nŶ = Xβ̂ = HY\nH = X(X'X)⁻¹X'\n\n"
                 "Var(β̂) = σ²(X'X)⁻¹\nSE(β̂ⱼ) = √[σ̂²(X'X)⁻¹ⱼⱼ]\n\n"
-                "σ̂² = MSE = SSE/(n−k)")
+                "σ̂² = MSE = SSE/(n−k−1)")
         ), "blue")
 
         section_heading("📊 Model Fit Metrics")
@@ -33,12 +34,12 @@ def tab_vocab():
             ["Metric", "Formula", "Interpretation"],
             [
                 [hl("R²"),       acc_t("1 − SSE/SST"),                  txt_s("Proportion of Y variation explained. SLR only: r²=R²")],
-                [hl("Adj. R²"),  acc_t("1−(1−R²)(n−1)/(n−k)"),         txt_s("Penalises for adding predictors. Compare across models")],
+                [hl("Adj. R²"),  acc_t("1−(1−R²)(n−1)/(n−k−1)"),         txt_s("Penalises for adding predictors. Compare across models")],
                 [hl("AIC"),      acc_t("n·ln(SSE/n) + 2k"),             txt_s("Akaike Info Criterion — lower is better")],
                 [hl("BIC"),      acc_t("n·ln(SSE/n) + k·ln(n)"),        txt_s("Bayesian IC — penalises complexity more than AIC")],
                 [hl("RMSE"),     acc_t("√(SSE/n)"),                      txt_s("Root mean squared error — same units as Y")],
                 [hl("F-stat"),   acc_t("(R²/k) / ((1−R²)/(n−k−1))"),   txt_s("Overall model significance ~ F(k, n−k−1)")],
-                [hl("t-stat"),   acc_t("β̂ⱼ / SE(β̂ⱼ)"),                txt_s("Individual coefficient significance ~ t(n−k)")],
+                [hl("t-stat"),   acc_t("β̂ⱼ / SE(β̂ⱼ)"),                txt_s("Individual coefficient significance ~ t(n−k−1)")],
                 [hl("VIF"),      acc_t("1/(1−R²ⱼ)"),                    txt_s("Variance Inflation Factor: multicollinearity measure")],
                 [hl("DW"),       acc_t("Σ(eᵢ−eᵢ₋₁)²/SSE"),             txt_s("Durbin-Watson: ~2 → no autocorrelation")],
             ]
@@ -48,7 +49,7 @@ def tab_vocab():
         render_ib(four_col(
             fml("CAPM:\nE(Rᵢ) = Rf + βᵢ[E(Rₘ)−Rf]\n\nβᵢ = Cov(Rᵢ,Rₘ)/Var(Rₘ)\n   = ρᵢₘ·(σᵢ/σₘ)"),
             fml("SCL (OLS):\nRᵢ−Rf = α + β(Rₘ−Rf) + ε\n\nα = Jensen's Alpha\nβ = Systematic Risk\nε = Idio. risk"),
-            fml("Fama-French:\nRᵢ−Rf = α + β₁MKT\n       + β₂SMB\n       + β₃HML + ε\n\nAdj-R² > CAPM R²"),
+            fml("Fama-French:\nRᵢ−Rf = α + β₁MKT\n       + β₂SMB\n       + β₃HML + ε\n\nCompare adjusted R² on the same observations"),
             fml("Risk Decomposition:\nσ²ᵢ = β²σ²ₘ + σ²ε\n\nSystematic = β²σ²ₘ/σ²ᵢ × 100%\nIdiosyncratic = (1−R²) × 100%")
         ), "gold")
 
@@ -60,15 +61,15 @@ def tab_vocab():
              "Method that minimises sum of squared residuals. BLUE under CLRM assumptions.",
              "Estimating CAPM beta by regressing stock returns on market returns"),
             ("R² (Coefficient of Determination)", "R² = SSR/SST ∈ [0,1]",
-             "Fraction of variance in Y explained by X(s). In SLR: R² = r².",
+             "Fraction of variance in Y explained by X(s). In in-sample SLR with an intercept: R² = r².",
              "R²=0.35 for Nifty stock → market explains 35% of daily return variation"),
-            ("Adjusted R²", "1 − (1−R²)(n−1)/(n−k)",
+            ("Adjusted R²", "1 − (1−R²)(n−1)/(n−k−1)",
              "R² corrected for model complexity. Increases only if new variable adds more than noise.",
-             "Fama-French adj.R² > CAPM R² confirms SMB/HML add explanatory power"),
+             "Compare both models on identical data; also inspect uncertainty, diagnostics and out-of-sample performance."),
             ("Standard Error (SE)", "SE(β̂₁) = √(MSE/Σ(Xᵢ−X̄)²)",
              "Estimated standard deviation of β̂. Smaller SE → more precise estimate.",
              "SE(beta) large → uncertain beta estimate (short data or noisy returns)"),
-            ("t-statistic", "t = β̂/SE(β̂) ~ t(n−k)",
+            ("t-statistic", "t = β̂/SE(β̂) ~ t(n−k−1)",
              "Tests H₀: β = 0. |t| > 2 roughly significant at 5% for large n.",
              "t(beta) = 8.5, p < 0.001 → beta highly significant for ICICI Bank"),
             ("p-value", "P(|T| > |t| | H₀ true)",
@@ -135,7 +136,7 @@ def tab_vocab():
         render_card("Model Specification",
             three_col(
                 ib(fml("SLR: Y = β₀ + β₁X + ε\nMLR: Y = Xβ + ε\nOLS: β̂=(X'X)⁻¹X'Y\nFitted: Ŷ=Xβ̂"), "gold"),
-                ib(fml("R² = 1−SSE/SST\nAdj.R²=1−(1−R²)(n−1)/(n−k)\nF = (R²/k)/((1−R²)/(n−k−1))\nt = β̂ⱼ/SE(β̂ⱼ)"), "blue"),
+                ib(fml("R² = 1−SSE/SST\nAdj.R²=1−(1−R²)(n−1)/(n−k−1)\nF = (R²/k)/((1−R²)/(n−k−1))\nt = β̂ⱼ/SE(β̂ⱼ)"), "blue"),
                 ib(fml("CAPM: Rᵢ−Rf = α+β(Rₘ−Rf)+ε\nFF3F: +β₂SMB+β₃HML\nVIF=1/(1−R²ⱼ)\nDW=Σ(eᵢ−eᵢ₋₁)²/SSE"), "green"),
             )
         )
