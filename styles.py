@@ -68,5 +68,8 @@ button:focus-visible,a:focus-visible { outline:3px solid #ffe39a!important; outl
 [data-testid="stMarkdownContainer"] a { color:#8fd6ff!important; -webkit-text-fill-color:#8fd6ff!important; text-decoration:underline; }
 section[data-testid="stSidebar"] h3 { color:#f6d783!important; -webkit-text-fill-color:#f6d783!important; }
 [data-testid="stHeader"] { background:#122b42!important; }
+[data-testid="stAlertContainer"],[data-testid^="stAlertContent"] { background:#173d57!important; color:#f0f7ff!important; -webkit-text-fill-color:#f0f7ff!important; }
+[data-testid="stAlert"] p,[data-testid="stAlert"] span { color:#f0f7ff!important; -webkit-text-fill-color:#f0f7ff!important; }
+[data-testid="stCaptionContainer"] p { color:#bdccdc!important; -webkit-text-fill-color:#bdccdc!important; }
 </style>
 """, unsafe_allow_html=True)
