@@ -17,11 +17,11 @@ st.set_page_config(
     page_title="Linear Regression in Finance",
     page_icon="📈",
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="expanded",
 )
 inject_css()
 
-NO_SEL = "user-select:none;-webkit-user-select:none"
+NO_SEL = "user-select:text;-webkit-user-select:text"
 FH = "'Playfair Display',serif"
 FB = "'Source Sans Pro',sans-serif"
 
@@ -41,7 +41,7 @@ st.html(f"""
   </div>
   <div style="color:#8892b0;-webkit-text-fill-color:#8892b0;
               font-family:{FB};font-size:1rem;margin-bottom:4px">
-    OLS Estimation · CAPM Beta · Fama-French · Diagnostics · Live NSE Data
+    OLS Estimation · CAPM Beta · Fama-French · Diagnostics · Yahoo Daily NSE Data
   </div>
   <div style="color:#ADD8E6;-webkit-text-fill-color:#ADD8E6;
               font-family:{FB};font-size:.85rem;font-style:italic;margin-bottom:14px">
@@ -52,7 +52,7 @@ st.html(f"""
   <div style="display:flex;justify-content:center;gap:10px;flex-wrap:wrap">
     <span style="background:rgba(0,51,102,0.6);color:#ADD8E6;-webkit-text-fill-color:#ADD8E6;
                  padding:3px 12px;border-radius:20px;font-size:.78rem;font-family:{FB};
-                 border:1px solid #1e3a5f">📡 Live NSE Data</span>
+                 border:1px solid #1e3a5f">📡 Yahoo Daily NSE Data</span>
     <span style="background:rgba(255,215,0,0.12);color:#FFD700;-webkit-text-fill-color:#FFD700;
                  padding:3px 12px;border-radius:20px;font-size:.78rem;font-family:{FB};
                  border:1px solid #FFD700">📐 CAPM Beta</span>
@@ -70,23 +70,22 @@ st.html(f"""
 """)
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
-TABS = st.tabs([
-    "📈 SLR — Concepts",
-    "📊 MLR — Multi-Factor",
-    "🔬 Diagnostics",
-    "🏦 Finance Lab",
-    "🐍 Python Code",
-    "🎓 Q&A / Self-Test",
-    "📚 Education Hub",
-])
-
-with TABS[0]: tab_slr()
-with TABS[1]: tab_mlr()
-with TABS[2]: tab_diagnostics()
-with TABS[3]: tab_finance()
-with TABS[4]: tab_code()
-with TABS[5]: tab_qa()
-with TABS[6]: tab_vocab()
+st.info("Finance Lab uses actual Yahoo Finance daily history. Concepts, multi-factor and diagnostic demos use clearly labelled simulations. Quotes may be delayed; this is not an exchange real-time feed.")
+st.markdown("[Read the full Regression Article](https://themountainpathacademy.com/learn-simple-linear-regression) · [Yahoo Nifty 50 data source](https://finance.yahoo.com/quote/%5ENSEI/history/)")
+pages = {
+    "🏦 Finance Lab — Yahoo Data": tab_finance,
+    "📈 SLR — Concepts": tab_slr,
+    "📊 MLR — Multi-Factor": tab_mlr,
+    "🔬 Diagnostics": tab_diagnostics,
+    "🐍 Python Code": tab_code,
+    "🎓 Q&A / Self-Test": tab_qa,
+    "📚 Education Hub": tab_vocab,
+}
+with st.sidebar:
+    st.markdown("### Learning workspace")
+    selected_page = st.radio("Choose a learning section", list(pages), key="workspace_page")
+    st.caption("Only the selected section runs. Yahoo requests are cached for 15 minutes; use Refresh Yahoo data for a new request.")
+pages[selected_page]()
 
 # ── Footer ────────────────────────────────────────────────────────────────────
 st.html(f"""
